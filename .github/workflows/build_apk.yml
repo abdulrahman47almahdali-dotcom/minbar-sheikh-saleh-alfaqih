@@ -1,0 +1,1197 @@
+name: Build Minbar APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-android-apk:
+    name: بناء تطبيق منبر الشيخ صالح الفقيه (APK)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. جلب المستودع
+        uses: actions/checkout@v4
+
+      - name: 2. إعداد بيئة Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 3. إعداد بيئة Flutter المستقرة
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: 4. إنشاء هيكل تطبيق Android تلقائياً
+        run: |
+          flutter create --platforms=android --org com.minbar.alfaqih --project-name minbar_sheikh_saleh_alfaqih .
+          rm -rf test
+
+      - name: 5. كتابة ملف الإعدادات وكود التطبيق الكامل
+        run: |
+          cat << 'PUBSPEC_EOF' > pubspec.yaml
+          name: minbar_sheikh_saleh_alfaqih
+          description: تطبيق منبر الشيخ صالح الفقيه للمحاضرات والخطب والمقتطفات الصوتية والمرئية بدون إنترنت.
+          publish_to: 'none'
+          version: 1.0.0+1
+
+          environment:
+            sdk: '>=3.2.0 <4.0.0'
+
+          dependencies:
+            flutter:
+              sdk: flutter
+            flutter_localizations:
+              sdk: flutter
+            path_provider: ^2.1.4
+            file_picker: ^8.1.2
+            audioplayers: ^6.1.0
+            video_player: ^2.9.2
+
+          dev_dependencies:
+            flutter_test:
+              sdk: flutter
+            flutter_lints: ^4.0.0
+
+          flutter:
+            uses-material-design: true
+            fonts:
+              - family: Amiri
+                fonts:
+                  - asset: assets/fonts/Amiri-Regular.ttf
+                  - asset: assets/fonts/Amiri-Bold.ttf
+                    weight: 700
+              - family: Tajawal
+                fonts:
+                  - asset: assets/fonts/Tajawal-Regular.ttf
+                  - asset: assets/fonts/Tajawal-Bold.ttf
+                    weight: 700
+          PUBSPEC_EOF
+
+          mkdir -p lib
+          cat << 'DART_EOF' > lib/main.dart
+          import 'dart:async';
+          import 'dart:convert';
+          import 'dart:io';
+          import 'dart:math' as math;
+          import 'package:audioplayers/audioplayers.dart';
+          import 'package:file_picker/file_picker.dart';
+          import 'package:flutter/material.dart';
+          import 'package:flutter/services.dart';
+          import 'package:flutter_localizations/flutter_localizations.dart';
+          import 'package:path_provider/path_provider.dart';
+          import 'package:video_player/video_player.dart';
+
+          void main() {
+            WidgetsFlutterBinding.ensureInitialized();
+            runApp(const MinbarAlFaqihApp());
+          }
+
+          class MinbarAlFaqihApp extends StatelessWidget {
+            const MinbarAlFaqihApp({super.key});
+
+            @override
+            Widget build(BuildContext context) {
+              return MaterialApp(
+                title: 'منبر الشيخ صالح الفقيه',
+                debugShowCheckedModeBanner: false,
+                locale: const Locale('ar'),
+                supportedLocales: const [Locale('ar')],
+                localizationsDelegates: const [
+                  GlobalMaterialLocalizations.delegate,
+                  GlobalWidgetsLocalizations.delegate,
+                  GlobalCupertinoLocalizations.delegate,
+                ],
+                theme: IslamicTheme.buildTheme(),
+                home: const HomeScreen(),
+              );
+            }
+          }
+
+          class IslamicTheme {
+            static const Color primaryEmerald = Color(0xFF0B4F3A);
+            static const Color deepEmerald = Color(0xFF063325);
+            static const Color softEmerald = Color(0xFF146C50);
+            static const Color antiqueGold = Color(0xFFC8A24A);
+            static const Color lightGold = Color(0xFFE7D29A);
+            static const Color warmIvory = Color(0xFFFAF6EE);
+            static const Color parchmentCard = Color(0xFFFFFDF8);
+            static const Color inkText = Color(0xFF1A2822);
+            static const Color mutedText = Color(0xFF5A6B63);
+            static const Color borderGold = Color(0x55C8A24A);
+
+            static ThemeData buildTheme() {
+              return ThemeData(
+                useMaterial3: true,
+                fontFamily: 'Tajawal',
+                scaffoldBackgroundColor: warmIvory,
+                colorScheme: const ColorScheme.light(
+                  primary: primaryEmerald,
+                  onPrimary: Colors.white,
+                  secondary: antiqueGold,
+                  onSecondary: deepEmerald,
+                  surface: parchmentCard,
+                  onSurface: inkText,
+                ),
+                appBarTheme: const AppBarTheme(
+                  backgroundColor: primaryEmerald,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  centerTitle: true,
+                  titleTextStyle: TextStyle(
+                    fontFamily: 'Amiri',
+                    fontSize: 23,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                floatingActionButtonTheme: const FloatingActionButtonThemeData(
+                  backgroundColor: primaryEmerald,
+                  foregroundColor: Colors.white,
+                  elevation: 4,
+                ),
+                inputDecorationTheme: InputDecorationTheme(
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: borderGold),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: borderGold),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: primaryEmerald, width: 1.6),
+                  ),
+                ),
+              );
+            }
+          }
+
+          class IslamicPatternPainter extends CustomPainter {
+            final Color lineColor;
+            final double spacing;
+
+            const IslamicPatternPainter({
+              this.lineColor = const Color(0x22E7D29A),
+              this.spacing = 54,
+            });
+
+            @override
+            void paint(Canvas canvas, Size size) {
+              final paint = Paint()
+                ..color = lineColor
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.0;
+
+              for (double x = -spacing; x < size.width + spacing; x += spacing) {
+                for (double y = -spacing; y < size.height + spacing; y += spacing) {
+                  final r = spacing * 0.34;
+                  canvas.drawRect(Rect.fromCircle(center: Offset(x, y), radius: r), paint);
+                  canvas.save();
+                  canvas.translate(x, y);
+                  canvas.rotate(math.pi / 4);
+                  canvas.drawRect(
+                    Rect.fromCenter(center: Offset.zero, width: r * 2, height: r * 2),
+                    paint,
+                  );
+                  canvas.restore();
+                }
+              }
+            }
+
+            @override
+            bool shouldRepaint(covariant IslamicPatternPainter oldDelegate) => false;
+          }
+
+          enum ContentCategory { lectures, sermons, audioClips, videoClips }
+
+          extension ContentCategoryX on ContentCategory {
+            String get key => name;
+
+            String get arabicTitle {
+              switch (this) {
+                case ContentCategory.lectures:
+                  return 'المحاضرات';
+                case ContentCategory.sermons:
+                  return 'الخطب';
+                case ContentCategory.audioClips:
+                  return 'المقتطفات الصوتية';
+                case ContentCategory.videoClips:
+                  return 'المقتطفات المرئية';
+              }
+            }
+
+            IconData get icon {
+              switch (this) {
+                case ContentCategory.lectures:
+                  return Icons.menu_book_rounded;
+                case ContentCategory.sermons:
+                  return Icons.mosque_rounded;
+                case ContentCategory.audioClips:
+                  return Icons.graphic_eq_rounded;
+                case ContentCategory.videoClips:
+                  return Icons.ondemand_video_rounded;
+              }
+            }
+
+            static ContentCategory fromKey(String raw) {
+              for (final cat in ContentCategory.values) {
+                if (cat.key == raw) return cat;
+              }
+              return ContentCategory.lectures;
+            }
+          }
+
+          class ContentItem {
+            final String id;
+            final String title;
+            final ContentCategory category;
+            final String bodyText;
+            final String? mediaPath;
+            final String? mediaType;
+            final String dateLabel;
+            final bool isFavorite;
+            final DateTime createdAt;
+
+            const ContentItem({
+              required this.id,
+              required this.title,
+              required this.category,
+              required this.bodyText,
+              this.mediaPath,
+              this.mediaType,
+              required this.dateLabel,
+              this.isFavorite = false,
+              required this.createdAt,
+            });
+
+            ContentItem copyWith({bool? isFavorite}) => ContentItem(
+                  id: id,
+                  title: title,
+                  category: category,
+                  bodyText: bodyText,
+                  mediaPath: mediaPath,
+                  mediaType: mediaType,
+                  dateLabel: dateLabel,
+                  isFavorite: isFavorite ?? this.isFavorite,
+                  createdAt: createdAt,
+                );
+
+            Map<String, dynamic> toJson() => {
+                  'id': id,
+                  'title': title,
+                  'category': category.key,
+                  'bodyText': bodyText,
+                  'mediaPath': mediaPath,
+                  'mediaType': mediaType,
+                  'dateLabel': dateLabel,
+                  'isFavorite': isFavorite,
+                  'createdAt': createdAt.toIso8601String(),
+                };
+
+            factory ContentItem.fromJson(Map<String, dynamic> json) => ContentItem(
+                  id: json['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString(),
+                  title: json['title'] as String? ?? '',
+                  category: ContentCategoryX.fromKey(json['category'] as String? ?? 'lectures'),
+                  bodyText: json['bodyText'] as String? ?? '',
+                  mediaPath: json['mediaPath'] as String?,
+                  mediaType: json['mediaType'] as String?,
+                  dateLabel: json['dateLabel'] as String? ?? '',
+                  isFavorite: json['isFavorite'] as bool? ?? false,
+                  createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+                );
+          }
+
+          class LocalStorageService {
+            Future<File> _getDataFile() async {
+              final dir = await getApplicationDocumentsDirectory();
+              return File('${dir.path}/minbar_alfaqih_data.json');
+            }
+
+            Future<Directory> _getMediaDir() async {
+              final dir = await getApplicationDocumentsDirectory();
+              final mediaDir = Directory('${dir.path}/minbar_media');
+              if (!await mediaDir.exists()) await mediaDir.create(recursive: true);
+              return mediaDir;
+            }
+
+            Future<List<ContentItem>> loadItems() async {
+              try {
+                final file = await _getDataFile();
+                if (!await file.exists()) {
+                  final seed = _starterItems();
+                  await saveItems(seed);
+                  return seed;
+                }
+                final raw = await file.readAsString();
+                if (raw.trim().isEmpty) return [];
+                final decoded = jsonDecode(raw) as List<dynamic>;
+                return decoded.map((e) => ContentItem.fromJson(e as Map<String, dynamic>)).toList();
+              } catch (_) {
+                return [];
+              }
+            }
+
+            Future<void> saveItems(List<ContentItem> items) async {
+              final file = await _getDataFile();
+              await file.writeAsString(jsonEncode(items.map((e) => e.toJson()).toList()), flush: true);
+            }
+
+            Future<String?> copyMediaToOfflineStorage(String sourcePath) async {
+              try {
+                final sourceFile = File(sourcePath);
+                if (!await sourceFile.exists()) return null;
+                final mediaDir = await _getMediaDir();
+                final name = sourceFile.uri.pathSegments.isNotEmpty ? sourceFile.uri.pathSegments.last : 'media';
+                final dest = File('${mediaDir.path}/${DateTime.now().millisecondsSinceEpoch}_$name');
+                await sourceFile.copy(dest.path);
+                return dest.path;
+              } catch (_) {
+                return sourcePath;
+              }
+            }
+
+            Future<void> deleteMediaFile(String? path) async {
+              if (path == null || path.isEmpty) return;
+              try {
+                final file = File(path);
+                final mediaDir = await _getMediaDir();
+                if (file.path.startsWith(mediaDir.path) && await file.exists()) {
+                  await file.delete();
+                }
+              } catch (_) {}
+            }
+
+            List<ContentItem> _starterItems() {
+              final now = DateTime.now();
+              return [
+                ContentItem(
+                  id: 'seed_1',
+                  title: 'مرحباً بك في منبر الشيخ صالح الفقيه',
+                  category: ContentCategory.lectures,
+                  dateLabel: 'نموذج تمهيدي',
+                  bodyText: 'يمكنك إضافة المحاضرات والخطب والمقتطفات الصوتية والمرئية بدون إنترنت عبر زر (إضافة محتوى) أسفل الشاشة، وتعديل أو حذف هذه المادة في أي وقت.',
+                  createdAt: now,
+                ),
+                ContentItem(
+                  id: 'seed_2',
+                  title: 'نموذج خطبة (قابل للتعديل والحذف)',
+                  category: ContentCategory.sermons,
+                  dateLabel: 'خطبة نموذجية',
+                  bodyText: 'اكتب أو الصق نص الخطبة هنا، ويمكنك إرفاق ملفها الصوتي من ذاكرة هاتفك ليُحفظ داخل التطبيق بدون إنترنت.',
+                  createdAt: now.subtract(const Duration(minutes: 1)),
+                ),
+                ContentItem(
+                  id: 'seed_3',
+                  title: 'قسم المقتطفات الصوتية',
+                  category: ContentCategory.audioClips,
+                  dateLabel: 'إرشاد',
+                  bodyText: 'أضف المقتطفات الصوتية بصيغة MP3 أو M4A من هاتفك لتعمل محلياً بدون إنترنت.',
+                  createdAt: now.subtract(const Duration(minutes: 2)),
+                ),
+                ContentItem(
+                  id: 'seed_4',
+                  title: 'قسم المقتطفات المرئية',
+                  category: ContentCategory.videoClips,
+                  dateLabel: 'إرشاد',
+                  bodyText: 'أضف المقاطع المرئية بصيغة MP4 من هاتفك لتعمل داخل المشغل المدمج بدون إنترنت.',
+                  createdAt: now.subtract(const Duration(minutes: 3)),
+                ),
+              ];
+            }
+          }
+
+          class HomeScreen extends StatefulWidget {
+            const HomeScreen({super.key});
+
+            @override
+            State<HomeScreen> createState() => _HomeScreenState();
+          }
+
+          class _HomeScreenState extends State<HomeScreen> {
+            final LocalStorageService _storage = LocalStorageService();
+            final TextEditingController _searchController = TextEditingController();
+
+            List<ContentItem> _items = [];
+            bool _isLoading = true;
+            int _selectedTabIndex = 0;
+            String _searchQuery = '';
+            bool _showFavoritesOnly = false;
+
+            ContentCategory get _currentCategory => ContentCategory.values[_selectedTabIndex];
+
+            @override
+            void initState() {
+              super.initState();
+              _loadData();
+            }
+
+            @override
+            void dispose() {
+              _searchController.dispose();
+              super.dispose();
+            }
+
+            Future<void> _loadData() async {
+              final loaded = await _storage.loadItems();
+              if (!mounted) return;
+              setState(() {
+                _items = loaded;
+                _isLoading = false;
+              });
+            }
+
+            List<ContentItem> get _filteredItems {
+              final q = _searchQuery.trim().toLowerCase();
+              return _items.where((item) {
+                if (item.category != _currentCategory) return false;
+                if (_showFavoritesOnly && !item.isFavorite) return false;
+                if (q.isEmpty) return true;
+                return item.title.toLowerCase().contains(q) ||
+                    item.bodyText.toLowerCase().contains(q) ||
+                    item.dateLabel.toLowerCase().contains(q);
+              }).toList()
+                ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+            }
+
+            Future<void> _openAddOrEditSheet({ContentItem? existing}) async {
+              final result = await showModalBottomSheet<ContentItem>(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => AddEditContentSheet(
+                  initialCategory: existing?.category ?? _currentCategory,
+                  existingItem: existing,
+                  storageService: _storage,
+                ),
+              );
+              if (result == null) return;
+
+              setState(() {
+                if (existing != null) {
+                  final idx = _items.indexWhere((e) => e.id == existing.id);
+                  if (idx != -1) _items[idx] = result;
+                } else {
+                  _items.insert(0, result);
+                  _selectedTabIndex = ContentCategory.values.indexOf(result.category);
+                }
+              });
+              await _storage.saveItems(_items);
+            }
+
+            Future<void> _toggleFavorite(ContentItem item) async {
+              setState(() {
+                final idx = _items.indexWhere((e) => e.id == item.id);
+                if (idx != -1) _items[idx] = item.copyWith(isFavorite: !item.isFavorite);
+              });
+              await _storage.saveItems(_items);
+            }
+
+            Future<void> _confirmDelete(ContentItem item) async {
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('حذف المادة', style: TextStyle(fontFamily: 'Amiri', fontWeight: FontWeight.bold)),
+                  content: Text('هل تريد حذف "${item.title}" نهائياً؟'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('حذف'),
+                    ),
+                  ],
+                ),
+              );
+              if (ok != true) return;
+              await _storage.deleteMediaFile(item.mediaPath);
+              setState(() => _items.removeWhere((e) => e.id == item.id));
+              await _storage.saveItems(_items);
+            }
+
+            @override
+            Widget build(BuildContext context) {
+              final visibleItems = _filteredItems;
+              return Scaffold(
+                body: Column(
+                  children: [
+                    Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topRight,
+                          end: Alignment.bottomLeft,
+                          colors: [IslamicTheme.deepEmerald, IslamicTheme.primaryEmerald, IslamicTheme.softEmerald],
+                        ),
+                        borderRadius: BorderRadius.only(
+                          bottomLeft: Radius.circular(28),
+                          bottomRight: Radius.circular(28),
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.only(
+                          bottomLeft: Radius.circular(28),
+                          bottomRight: Radius.circular(28),
+                        ),
+                        child: CustomPaint(
+                          painter: const IslamicPatternPainter(),
+                          child: SafeArea(
+                            bottom: false,
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 44,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0x28C8A24A),
+                                          borderRadius: BorderRadius.circular(14),
+                                          border: Border.all(color: IslamicTheme.antiqueGold, width: 1.2),
+                                        ),
+                                        child: const Icon(Icons.mosque_rounded, color: IslamicTheme.lightGold),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      const Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'منبر الشيخ صالح الفقيه',
+                                              style: TextStyle(
+                                                fontFamily: 'Amiri',
+                                                fontSize: 24,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                            Text(
+                                              'محاضرات • خطب • صوتيات • مرئيات (بدون إنترنت)',
+                                              style: TextStyle(fontSize: 12, color: IslamicTheme.lightGold),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      IconButton(
+                                        onPressed: () => setState(() => _showFavoritesOnly = !_showFavoritesOnly),
+                                        style: IconButton.styleFrom(
+                                          backgroundColor: _showFavoritesOnly
+                                              ? IslamicTheme.antiqueGold
+                                              : const Color(0x22FFFFFF),
+                                        ),
+                                        icon: Icon(
+                                          _showFavoritesOnly ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+                                          color: _showFavoritesOnly ? IslamicTheme.deepEmerald : Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 14),
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xF5FFFDF8),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(color: const Color(0x66C8A24A)),
+                                    ),
+                                    child: TextField(
+                                      controller: _searchController,
+                                      onChanged: (v) => setState(() => _searchQuery = v),
+                                      decoration: const InputDecoration(
+                                        hintText: 'ابحث في المحاضرات والخطب والكلمات...',
+                                        prefixIcon: Icon(Icons.search_rounded, color: IslamicTheme.primaryEmerald),
+                                        border: InputBorder.none,
+                                        enabledBorder: InputBorder.none,
+                                        focusedBorder: InputBorder.none,
+                                        filled: false,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                      child: Row(
+                        children: List.generate(ContentCategory.values.length, (i) {
+                          final cat = ContentCategory.values[i];
+                          final selected = i == _selectedTabIndex;
+                          return Expanded(
+                            child: GestureDetector(
+                              onTap: () => setState(() => _selectedTabIndex = i),
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 3),
+                                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                                decoration: BoxDecoration(
+                                  color: selected ? IslamicTheme.primaryEmerald : IslamicTheme.parchmentCard,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: selected ? IslamicTheme.antiqueGold : IslamicTheme.borderGold,
+                                    width: selected ? 1.4 : 1.0,
+                                  ),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      cat.icon,
+                                      size: 20,
+                                      color: selected ? IslamicTheme.lightGold : IslamicTheme.primaryEmerald,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      cat.arabicTitle,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: selected ? Colors.white : IslamicTheme.inkText,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                    ),
+                    Expanded(
+                      child: _isLoading
+                          ? const Center(child: CircularProgressIndicator(color: IslamicTheme.primaryEmerald))
+                          : visibleItems.isEmpty
+                              ? Center(
+                                  child: Text(
+                                    'لا توجد مواد بعد في قسم ${_currentCategory.arabicTitle}',
+                                    style: const TextStyle(fontFamily: 'Amiri', fontSize: 20, color: IslamicTheme.mutedText),
+                                  ),
+                                )
+                              : ListView.builder(
+                                  padding: const EdgeInsets.only(top: 6, bottom: 90),
+                                  itemCount: visibleItems.length,
+                                  itemBuilder: (context, idx) {
+                                    final item = visibleItems[idx];
+                                    final hasMedia = item.mediaPath != null && item.mediaPath!.isNotEmpty;
+                                    return Container(
+                                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                                      decoration: BoxDecoration(
+                                        color: IslamicTheme.parchmentCard,
+                                        borderRadius: BorderRadius.circular(18),
+                                        border: Border.all(color: IslamicTheme.borderGold, width: 1.1),
+                                      ),
+                                      child: ListTile(
+                                        contentPadding: const EdgeInsets.fromLTRB(10, 8, 14, 8),
+                                        leading: CircleAvatar(
+                                          backgroundColor: const Color(0x160B4F3A),
+                                          child: Icon(item.category.icon, color: IslamicTheme.primaryEmerald),
+                                        ),
+                                        title: Text(
+                                          item.title,
+                                          style: const TextStyle(
+                                            fontFamily: 'Amiri',
+                                            fontSize: 19,
+                                            fontWeight: FontWeight.bold,
+                                            color: IslamicTheme.inkText,
+                                          ),
+                                        ),
+                                        subtitle: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            if (item.dateLabel.isNotEmpty || hasMedia)
+                                              Text(
+                                                [
+                                                  if (item.dateLabel.isNotEmpty) item.dateLabel,
+                                                  if (hasMedia) item.mediaType == 'video' ? 'ملف مرئي' : 'ملف صوتي',
+                                                ].join(' • '),
+                                                style: const TextStyle(fontSize: 12, color: IslamicTheme.primaryEmerald),
+                                              ),
+                                            if (item.bodyText.isNotEmpty)
+                                              Text(
+                                                item.bodyText,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(fontSize: 13, color: IslamicTheme.mutedText),
+                                              ),
+                                          ],
+                                        ),
+                                        trailing: PopupMenuButton<String>(
+                                          onSelected: (v) {
+                                            if (v == 'fav') _toggleFavorite(item);
+                                            if (v == 'edit') _openAddOrEditSheet(existing: item);
+                                            if (v == 'delete') _confirmDelete(item);
+                                          },
+                                          itemBuilder: (_) => [
+                                            PopupMenuItem(
+                                              value: 'fav',
+                                              child: Text(item.isFavorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة'),
+                                            ),
+                                            const PopupMenuItem(value: 'edit', child: Text('تعديل')),
+                                            const PopupMenuItem(
+                                              value: 'delete',
+                                              child: Text('حذف', style: TextStyle(color: Colors.redAccent)),
+                                            ),
+                                          ],
+                                        ),
+                                        onTap: () => Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) => DetailScreen(
+                                              item: item,
+                                              onEdit: () async {
+                                                Navigator.pop(context);
+                                                await _openAddOrEditSheet(existing: item);
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                    ),
+                  ],
+                ),
+                floatingActionButton: FloatingActionButton.extended(
+                  onPressed: () => _openAddOrEditSheet(),
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('إضافة محتوى', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              );
+            }
+          }
+
+          class AddEditContentSheet extends StatefulWidget {
+            final ContentCategory initialCategory;
+            final ContentItem? existingItem;
+            final LocalStorageService storageService;
+
+            const AddEditContentSheet({
+              super.key,
+              required this.initialCategory,
+              required this.storageService,
+              this.existingItem,
+            });
+
+            @override
+            State<AddEditContentSheet> createState() => _AddEditContentSheetState();
+          }
+
+          class _AddEditContentSheetState extends State<AddEditContentSheet> {
+            final _formKey = GlobalKey<FormState>();
+            late ContentCategory _selectedCategory;
+            late TextEditingController _titleController;
+            late TextEditingController _dateController;
+            late TextEditingController _bodyController;
+            String? _mediaPath;
+            String? _mediaType;
+            bool _saving = false;
+
+            @override
+            void initState() {
+              super.initState();
+              final item = widget.existingItem;
+              _selectedCategory = item?.category ?? widget.initialCategory;
+              _titleController = TextEditingController(text: item?.title ?? '');
+              _dateController = TextEditingController(text: item?.dateLabel ?? '');
+              _bodyController = TextEditingController(text: item?.bodyText ?? '');
+              _mediaPath = item?.mediaPath;
+              _mediaType = item?.mediaType;
+            }
+
+            @override
+            void dispose() {
+              _titleController.dispose();
+              _dateController.dispose();
+              _bodyController.dispose();
+              super.dispose();
+            }
+
+            Future<void> _pickMedia(bool isVideo) async {
+              final res = await FilePicker.platform.pickFiles(type: isVideo ? FileType.video : FileType.audio);
+              if (res == null || res.files.isEmpty || res.files.single.path == null) return;
+              setState(() {
+                _mediaPath = res.files.single.path;
+                _mediaType = isVideo ? 'video' : 'audio';
+              });
+            }
+
+            Future<void> _save() async {
+              if (!_formKey.currentState!.validate()) return;
+              setState(() => _saving = true);
+              String? finalPath = _mediaPath;
+              if (_mediaPath != null && _mediaPath != widget.existingItem?.mediaPath) {
+                finalPath = await widget.storageService.copyMediaToOfflineStorage(_mediaPath!);
+              }
+              final item = ContentItem(
+                id: widget.existingItem?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+                title: _titleController.text.trim(),
+                category: _selectedCategory,
+                bodyText: _bodyController.text.trim(),
+                mediaPath: finalPath,
+                mediaType: finalPath != null ? _mediaType : null,
+                dateLabel: _dateController.text.trim(),
+                isFavorite: widget.existingItem?.isFavorite ?? false,
+                createdAt: widget.existingItem?.createdAt ?? DateTime.now(),
+              );
+              if (mounted) Navigator.pop(context, item);
+            }
+
+            @override
+            Widget build(BuildContext context) {
+              return Container(
+                decoration: const BoxDecoration(
+                  color: IslamicTheme.warmIvory,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                padding: EdgeInsets.fromLTRB(18, 16, 18, MediaQuery.of(context).viewInsets.bottom + 20),
+                child: SingleChildScrollView(
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          widget.existingItem == null ? 'إضافة مادة جديدة للمنبر' : 'تعديل المادة',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontFamily: 'Amiri',
+                            fontSize: 23,
+                            fontWeight: FontWeight.bold,
+                            color: IslamicTheme.primaryEmerald,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: ContentCategory.values.map((cat) {
+                            final sel = cat == _selectedCategory;
+                            return ChoiceChip(
+                              label: Text(cat.arabicTitle),
+                              selected: sel,
+                              selectedColor: IslamicTheme.primaryEmerald,
+                              labelStyle: TextStyle(color: sel ? Colors.white : IslamicTheme.inkText),
+                              onSelected: (_) => setState(() => _selectedCategory = cat),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _titleController,
+                          decoration: const InputDecoration(labelText: 'العنوان *'),
+                          validator: (v) => (v == null || v.trim().isEmpty) ? 'يرجى كتابة العنوان' : null,
+                        ),
+                        const SizedBox(height: 10),
+                        TextFormField(
+                          controller: _dateController,
+                          decoration: const InputDecoration(labelText: 'التاريخ أو المناسبة (اختياري)'),
+                        ),
+                        const SizedBox(height: 10),
+                        TextFormField(
+                          controller: _bodyController,
+                          minLines: 4,
+                          maxLines: 8,
+                          decoration: const InputDecoration(labelText: 'نص الكلمة أو المحاضرة أو الخطبة'),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => _pickMedia(false),
+                                icon: const Icon(Icons.audiotrack_rounded),
+                                label: const Text('إرفاق صوت'),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => _pickMedia(true),
+                                icon: const Icon(Icons.videocam_rounded),
+                                label: const Text('إرفاق فيديو'),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_mediaPath != null) ...[
+                          const SizedBox(height: 8),
+                          Text('الملف المختار: ${_mediaPath!.split('/').last}', style: const TextStyle(fontSize: 12)),
+                        ],
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _saving ? null : _save,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: IslamicTheme.primaryEmerald,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          child: Text(_saving ? 'جاري الحفظ...' : 'حفظ المادة'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }
+          }
+
+          class DetailScreen extends StatefulWidget {
+            final ContentItem item;
+            final VoidCallback onEdit;
+
+            const DetailScreen({super.key, required this.item, required this.onEdit});
+
+            @override
+            State<DetailScreen> createState() => _DetailScreenState();
+          }
+
+          class _DetailScreenState extends State<DetailScreen> {
+            double _fontSize = 20;
+            bool _nightMode = false;
+            AudioPlayer? _audioPlayer;
+            PlayerState _playerState = PlayerState.stopped;
+            Duration _duration = Duration.zero;
+            Duration _position = Duration.zero;
+            StreamSubscription<PlayerState>? _sSub;
+            StreamSubscription<Duration>? _dSub;
+            StreamSubscription<Duration>? _pSub;
+            VideoPlayerController? _videoController;
+
+            bool get _hasFile => widget.item.mediaPath != null && File(widget.item.mediaPath!).existsSync();
+
+            @override
+            void initState() {
+              super.initState();
+              _initMedia();
+            }
+
+            Future<void> _initMedia() async {
+              if (!_hasFile) return;
+              if (widget.item.mediaType == 'video') {
+                final ctrl = VideoPlayerController.file(File(widget.item.mediaPath!));
+                await ctrl.initialize();
+                ctrl.addListener(() {
+                  if (mounted) setState(() {});
+                });
+                if (mounted) setState(() => _videoController = ctrl);
+              } else if (widget.item.mediaType == 'audio') {
+                final player = AudioPlayer();
+                _audioPlayer = player;
+                _sSub = player.onPlayerStateChanged.listen((s) => mounted ? setState(() => _playerState = s) : null);
+                _dSub = player.onDurationChanged.listen((d) => mounted ? setState(() => _duration = d) : null);
+                _pSub = player.onPositionChanged.listen((p) => mounted ? setState(() => _position = p) : null);
+              }
+            }
+
+            @override
+            void dispose() {
+              _sSub?.cancel();
+              _dSub?.cancel();
+              _pSub?.cancel();
+              _audioPlayer?.dispose();
+              _videoController?.dispose();
+              super.dispose();
+            }
+
+            @override
+            Widget build(BuildContext context) {
+              final bg = _nightMode ? const Color(0xFF10201B) : IslamicTheme.warmIvory;
+              final card = _nightMode ? const Color(0xFF172D26) : IslamicTheme.parchmentCard;
+              final txt = _nightMode ? const Color(0xFFECE6D8) : IslamicTheme.inkText;
+
+              return Scaffold(
+                backgroundColor: bg,
+                appBar: AppBar(
+                  title: Text(widget.item.category.arabicTitle),
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.text_increase_rounded),
+                      onPressed: () => setState(() => _fontSize = (_fontSize + 2).clamp(15, 32)),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.text_decrease_rounded),
+                      onPressed: () => setState(() => _fontSize = (_fontSize - 2).clamp(15, 32)),
+                    ),
+                    IconButton(
+                      icon: Icon(_nightMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded),
+                      onPressed: () => setState(() => _nightMode = !_nightMode),
+                    ),
+                    IconButton(icon: const Icon(Icons.edit_outlined), onPressed: widget.onEdit),
+                  ],
+                ),
+                body: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: card,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: IslamicTheme.borderGold),
+                      ),
+                      child: Text(
+                        widget.item.title,
+                        style: TextStyle(
+                          fontFamily: 'Amiri',
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: _nightMode ? IslamicTheme.lightGold : IslamicTheme.primaryEmerald,
+                        ),
+                      ),
+                    ),
+                    if (_hasFile && widget.item.mediaType == 'video' && _videoController != null && _videoController!.value.isInitialized) ...[
+                      const SizedBox(height: 14),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Column(
+                          children: [
+                            AspectRatio(
+                              aspectRatio: _videoController!.value.aspectRatio > 0 ? _videoController!.value.aspectRatio : 16 / 9,
+                              child: VideoPlayer(_videoController!),
+                            ),
+                            Container(
+                              color: IslamicTheme.deepEmerald,
+                              child: Row(
+                                children: [
+                                  IconButton(
+                                    icon: Icon(
+                                      _videoController!.value.isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill,
+                                      color: IslamicTheme.lightGold,
+                                    ),
+                                    onPressed: () => setState(() {
+                                      _videoController!.value.isPlaying ? _videoController!.pause() : _videoController!.play();
+                                    }),
+                                  ),
+                                  Expanded(child: VideoProgressIndicator(_videoController!, allowScrubbing: true)),
+                                  const SizedBox(width: 10),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    if (_hasFile && widget.item.mediaType == 'audio') ...[
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: IslamicTheme.primaryEmerald,
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Column(
+                          children: [
+                            Slider(
+                              value: _position.inMilliseconds.toDouble().clamp(0, _duration.inMilliseconds > 0 ? _duration.inMilliseconds.toDouble() : 1),
+                              max: _duration.inMilliseconds > 0 ? _duration.inMilliseconds.toDouble() : 1,
+                              activeColor: IslamicTheme.antiqueGold,
+                              onChanged: (v) => _audioPlayer?.seek(Duration(milliseconds: v.round())),
+                            ),
+                            IconButton(
+                              iconSize: 42,
+                              color: IslamicTheme.lightGold,
+                              icon: Icon(_playerState == PlayerState.playing ? Icons.pause_circle_filled : Icons.play_circle_fill),
+                              onPressed: () async {
+                                if (_playerState == PlayerState.playing) {
+                                  await _audioPlayer?.pause();
+                                } else if (_playerState == PlayerState.paused) {
+                                  await _audioPlayer?.resume();
+                                } else {
+                                  await _audioPlayer?.play(DeviceFileSource(widget.item.mediaPath!));
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    if (widget.item.bodyText.trim().isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: card,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: IslamicTheme.borderGold),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton.icon(
+                                onPressed: () {
+                                  Clipboard.setData(ClipboardData(text: '${widget.item.title}\n\n${widget.item.bodyText}'));
+                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم نسخ النص')));
+                                },
+                                icon: const Icon(Icons.copy_rounded, size: 17),
+                                label: const Text('نسخ النص'),
+                              ),
+                            ),
+                            SelectableText(
+                              widget.item.bodyText,
+                              style: TextStyle(fontFamily: 'Amiri', fontSize: _fontSize, height: 1.9, color: txt),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }
+          }
+          DART_EOF
+
+      - name: 6. تحميل الخطوط العربية للعمل بدون إنترنت
+        run: |
+          mkdir -p assets/fonts
+          curl -fL "https://raw.githubusercontent.com/google/fonts/main/ofl/amiri/Amiri-Regular.ttf" -o assets/fonts/Amiri-Regular.ttf
+          curl -fL "https://raw.githubusercontent.com/google/fonts/main/ofl/amiri/Amiri-Bold.ttf" -o assets/fonts/Amiri-Bold.ttf
+          curl -fL "https://raw.githubusercontent.com/google/fonts/main/ofl/tajawal/Tajawal-Regular.ttf" -o assets/fonts/Tajawal-Regular.ttf
+          curl -fL "https://raw.githubusercontent.com/google/fonts/main/ofl/tajawal/Tajawal-Bold.ttf" -o assets/fonts/Tajawal-Bold.ttf
+
+      - name: 7. ضبط الاسم العربي للتطبيق وأذونات الوسائط المحلية
+        run: |
+          python3 - << 'PY_EOF'
+          from pathlib import Path
+          import re
+
+          manifest_path = Path("android/app/src/main/AndroidManifest.xml")
+          content = manifest_path.read_text(encoding="utf-8")
+          content = re.sub(
+              r'android:label="[^"]*"',
+              'android:label="منبر الشيخ صالح الفقيه"',
+              content,
+              count=1
+          )
+          permissions = """    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+              <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
+              <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>"""
+          if "READ_MEDIA_AUDIO" not in content:
+              content = content.replace("<application", f"{permissions}\n    <application", 1)
+          manifest_path.write_text(content, encoding="utf-8")
+          PY_EOF
+
+      - name: 8. تثبيت الحزم وبناء ملف APK النهائي
+        run: |
+          flutter pub get
+          flutter build apk --release
+
+      - name: 9. رفع ملف التطبيق للتحميل المباشر
+        uses: actions/upload-artifact@v4
+        with:
+          name: Minbar-Sheikh-Saleh-AlFaqih-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
