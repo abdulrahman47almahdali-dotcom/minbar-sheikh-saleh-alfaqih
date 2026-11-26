@@ -1203,7 +1203,7 @@ jobs:
               gpatch = 'subprojects {\n    afterEvaluate { proj ->\n        if (proj.plugins.hasPlugin("com.android.library")) {\n            proj.android {\n                compileSdk 36\n            }\n        }\n    }\n}\n\n'
               if "com.android.library" not in gr:
                   groovy_root.write_text(gpatch + gr, encoding="utf-8")
-          PY_EOF 
+          PY_EOF
 
       - name: 8. تثبيت الحزم وبناء ملف APK النهائي
         run: |
